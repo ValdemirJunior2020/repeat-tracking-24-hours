@@ -1,23 +1,113 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+.giignore# Dependencies
+node_modules/
+**/node_modules/
 
-# dependencies
-/node_modules
-/.pnp
-.pnp.js
-
-# testing
-/coverage
-
-# production
-/build
-
-# misc
-.DS_Store
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
+# Logs & diagnostics
+logs/
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+.amplication-debug.log
+
+# Runtime data / pids
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage
+coverage/
+.nyc_output/
+lib-cov/
+
+# Build outputs
+dist/
+build/
+out/
+lib/
+tmp/
+temp/
+.cache/
+*.tsbuildinfo
+
+# Framework/tool caches
+.parcel-cache/
+.vite/
+.turbo/
+.next/
+.nuxt/
+.svelte-kit/
+.storybook-out/
+storybook-static/
+.playwright/
+playwright-report/
+blob-report/
+.cypress/
+cypress/screenshots/
+cypress/videos/
+.puppeteer/
+
+# Static site & bundlers
+public/build/
+.gatsby/
+.cache/
+.astro/
+
+# Serverless / hosting
+.vercel/
+.netlify/
+.functions/
+.firebase/
+.firebaserc.local
+functions/node_modules/
+
+# Env & secrets (keep .env.example tracked)
+.env
+.env.*
+!.env.example
+*.env.local
+*.local
+
+# TypeScript
+# (dist/ already covered above)
+*.tsbuildinfo
+
+# Editors/OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+
+# Package managers
+.npm/
+.yarn/*
+!.yarn/releases/
+!.yarn/plugins/
+!.yarn/sdks/
+!.yarn/versions/
+.pnp.*
+.pnpm-store/
+
+# Testing
+junit.xml
+test-results/
+coverage-final.json
+
+# Databases & local data
+*.sqlite
+*.sqlite-journal
+*.db
+.prisma/
+prisma/dev.db
+dump.rdb
+
+# Misc
+*.orig
+*.rej
+*.sketch
