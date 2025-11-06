@@ -23,25 +23,37 @@ export default function App() {
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(true);
 
+  // one function to load everything
+  const loadAll = async () => {
+    const [sheetData, exclusions] = await Promise.all([
+      fetchSheetValues(),
+      loadExclusionMap(),
+    ]);
+    setRawRows(sheetData);
+    setExMap(exclusions);
+  };
+
+  // initial load + auto-refresh every 10 minutes
   useEffect(() => {
+    let alive = true;
     (async () => {
       try {
-        const [sheetData, exclusions] = await Promise.all([
-          fetchSheetValues(),
-          loadExclusionMap(),
-        ]);
-        setRawRows(sheetData);
-        setExMap(exclusions);
+        await loadAll();
       } catch (e) {
-        setErr(
-          `Could not load data. Check Google Sheet sharing and that /public/exclusion list.xlsx exists. Details: ${
-            e.message || e
-          }`
-        );
+        if (alive) setErr(`Could not load data. Details: ${e.message || e}`);
       } finally {
-        setLoading(false);
+        if (alive) setLoading(false);
       }
     })();
+
+    const id = setInterval(() => {
+      loadAll().catch(() => {});
+    }, 10 * 60 * 1000); // 10 minutes
+
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
   }, []);
 
   const onExcelRows = (json) => {
@@ -53,10 +65,11 @@ export default function App() {
     () =>
       rawRows
         .map(normalizeRow)
-        .filter((r) => r.numberCalled || r.reason || r.quantity > 0),
+        .filter((r) => r.numberCalled || r.reason),
     [rawRows]
   );
 
+  // apply exclusion overrides to Who/Reason (display only)
   const rows = useMemo(() => {
     if (!normalizedRows.length || exMap.size === 0) return normalizedRows;
     return normalizedRows.map((r) => {
@@ -74,28 +87,24 @@ export default function App() {
     });
   }, [normalizedRows, exMap]);
 
+  // COUNT-BASED aggregations
   const reasonAgg = useMemo(() => aggregateByReason(rows), [rows]);
   const numberAgg = useMemo(() => aggregateByNumber(rows), [rows]);
 
   const summary = useMemo(() => {
     const uniqueNumbers = numberAgg.length;
-    const firstTimeCount = numberAgg.filter(
-      (n) => (Number(n.total) || 0) === 1
-    ).length;
-    const repeatCount = numberAgg.filter(
-      (n) => (Number(n.total) || 0) >= 2
-    ).length;
+    const firstTimeCount = numberAgg.filter((n) => (Number(n.total) || 0) === 1).length;
+    const repeatCount = numberAgg.filter((n) => (Number(n.total) || 0) >= 2).length;
     const top = reasonAgg.arr[0]?.reason || "";
     return {
-      totalCalls: reasonAgg.total,
+      totalCalls: rows.length, // each row = one call
       uniqueNumbers,
       firstTimeCount,
       repeatCount,
       topReason: top,
     };
-  }, [reasonAgg, numberAgg]);
+  }, [rows, reasonAgg, numberAgg]);
 
-  // Build a Set for quick “Only Top 10 reasons”
   const top10ReasonSet = useMemo(() => {
     const s = new Set();
     reasonAgg.arr.slice(0, 10).forEach((r) => s.add(r.reason || "(No Reason)"));
@@ -131,7 +140,6 @@ export default function App() {
 
         {!loading && rows.length > 0 && (
           <>
-            {/* KPIs */}
             <SummaryCards
               totalCalls={summary.totalCalls}
               uniqueNumbers={summary.uniqueNumbers}
@@ -140,13 +148,8 @@ export default function App() {
               topReason={summary.topReason}
             />
 
-            {/* Chart FIRST */}
             <ReasonBar dataArr={reasonAgg.arr} />
-
-            {/* Top 10 panel SECOND */}
             <TopReasons dataArr={reasonAgg.arr} />
-
-            {/* Table with pagination + Only Top 10 toggle */}
             <DataTable rows={rows} top10ReasonSet={top10ReasonSet} />
           </>
         )}
