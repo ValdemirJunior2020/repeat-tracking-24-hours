@@ -4,11 +4,16 @@ import { Container, Alert, Row, Col, Spinner } from "react-bootstrap";
 import HeaderNav from "./components/HeaderNav";
 import SummaryCards from "./components/SummaryCards";
 import ReasonBar from "./components/ReasonBar";
+import TopReasons from "./components/TopReasons";
 import DataTable from "./components/DataTable";
-import UploadExcel from "./components/UploadExcel"; // optional fallback
+import UploadExcel from "./components/UploadExcel";
 
 import { fetchSheetValues } from "./utils/fetchSheet";
-import { normalizeRow, aggregateByReason, aggregateByNumber } from "./utils/transform";
+import {
+  normalizeRow,
+  aggregateByReason,
+  aggregateByNumber,
+} from "./utils/transform";
 import { SHEET_NAME } from "./config";
 import { loadExclusionMap, normalizePhone } from "./utils/exclusions";
 
@@ -18,7 +23,6 @@ export default function App() {
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(true);
 
-  // Load Google Sheet + Exclusion list Excel (public/exclusion list.xlsx)
   useEffect(() => {
     (async () => {
       try {
@@ -30,9 +34,9 @@ export default function App() {
         setExMap(exclusions);
       } catch (e) {
         setErr(
-          `Could not load data. ` +
-            `Check the Google Sheet sharing and that /public/exclusion list.xlsx exists. ` +
-            `Details: ${e.message || e}`
+          `Could not load data. Check Google Sheet sharing and that /public/exclusion list.xlsx exists. Details: ${
+            e.message || e
+          }`
         );
       } finally {
         setLoading(false);
@@ -40,13 +44,11 @@ export default function App() {
     })();
   }, []);
 
-  // Optional: allow loading a local Excel if the Sheet isn’t public yet
   const onExcelRows = (json) => {
     setErr("");
     setRawRows(json);
   };
 
-  // Normalize rows to the 4 fields we care about
   const normalizedRows = useMemo(
     () =>
       rawRows
@@ -55,14 +57,18 @@ export default function App() {
     [rawRows]
   );
 
-  // Apply exclusions: if phone in exclusion map, override whoCalled with name from Col C
   const rows = useMemo(() => {
     if (!normalizedRows.length || exMap.size === 0) return normalizedRows;
     return normalizedRows.map((r) => {
       const key = normalizePhone(r.numberCalled);
       const name = exMap.get(key);
       if (name) {
-        return { ...r, whoCalled: name }; // override D
+        const whoCalled = name;
+        const reason =
+          r.reason && r.reason !== "(No Reason)"
+            ? r.reason
+            : name.charAt(0).toUpperCase() + name.slice(1);
+        return { ...r, whoCalled, reason };
       }
       return r;
     });
@@ -72,13 +78,29 @@ export default function App() {
   const numberAgg = useMemo(() => aggregateByNumber(rows), [rows]);
 
   const summary = useMemo(() => {
+    const uniqueNumbers = numberAgg.length;
+    const firstTimeCount = numberAgg.filter(
+      (n) => (Number(n.total) || 0) === 1
+    ).length;
+    const repeatCount = numberAgg.filter(
+      (n) => (Number(n.total) || 0) >= 2
+    ).length;
     const top = reasonAgg.arr[0]?.reason || "";
     return {
       totalCalls: reasonAgg.total,
-      uniqueNumbers: numberAgg.length,
+      uniqueNumbers,
+      firstTimeCount,
+      repeatCount,
       topReason: top,
     };
   }, [reasonAgg, numberAgg]);
+
+  // Build a Set for quick “Only Top 10 reasons”
+  const top10ReasonSet = useMemo(() => {
+    const s = new Set();
+    reasonAgg.arr.slice(0, 10).forEach((r) => s.add(r.reason || "(No Reason)"));
+    return s;
+  }, [reasonAgg]);
 
   return (
     <>
@@ -109,13 +131,23 @@ export default function App() {
 
         {!loading && rows.length > 0 && (
           <>
+            {/* KPIs */}
             <SummaryCards
               totalCalls={summary.totalCalls}
               uniqueNumbers={summary.uniqueNumbers}
+              firstTimeCount={summary.firstTimeCount}
+              repeatCount={summary.repeatCount}
               topReason={summary.topReason}
             />
+
+            {/* Chart FIRST */}
             <ReasonBar dataArr={reasonAgg.arr} />
-            <DataTable rows={rows} />
+
+            {/* Top 10 panel SECOND */}
+            <TopReasons dataArr={reasonAgg.arr} />
+
+            {/* Table with pagination + Only Top 10 toggle */}
+            <DataTable rows={rows} top10ReasonSet={top10ReasonSet} />
           </>
         )}
 
